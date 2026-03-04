@@ -10,6 +10,7 @@ WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 CALLBACK = os.getenv("CALLBACK_URL")
 
 BROADCASTER_ID = "557633478"
+BROADCASTER_LOGIN = "dj___shige"
 
 
 def get_token():
@@ -29,6 +30,8 @@ def get_token():
 
 
 def subscribe_event():
+
+    print("Subscribing to EventSub...")
 
     token = get_token()
 
@@ -66,19 +69,21 @@ def subscribe_event():
         }
     }
 
-    requests.post(
+    r1 = requests.post(
         "https://api.twitch.tv/helix/eventsub/subscriptions",
         headers=headers,
         json=body_in
     )
 
-    requests.post(
+    print("Raid IN status:", r1.status_code)
+
+    r2 = requests.post(
         "https://api.twitch.tv/helix/eventsub/subscriptions",
         headers=headers,
         json=body_out
     )
-    print("EventSub status:", r.status_code)
-    print(r.text)
+
+    print("Raid OUT status:", r2.status_code)
 
 
 @app.route("/")
@@ -91,26 +96,47 @@ def webhook():
 
     data = request.json
 
+    # Twitch verification
     if request.headers.get("Twitch-Eventsub-Message-Type") == "webhook_callback_verification":
         return data["challenge"]
 
     if data["subscription"]["type"] == "channel.raid":
 
         raider = data["event"]["from_broadcaster_user_name"]
+        target = data["event"]["to_broadcaster_user_name"]
         viewers = data["event"]["viewers"]
 
-        embed = {
-            "title": "⚡ Twitch RAID",
-            "description": f"**{raider}** がレイドしました",
-            "color": 9148193,
-            "fields": [
-                {
-                    "name": "👥 Viewers",
-                    "value": str(viewers),
-                    "inline": True
-                }
-            ]
-        }
+        # RAID IN
+        if target.lower() == BROADCASTER_LOGIN:
+
+            embed = {
+                "title": "⚡ RAID IN",
+                "description": f"**{raider} → {target}**",
+                "color": 9148193,
+                "fields": [
+                    {
+                        "name": "👥 Viewers",
+                        "value": str(viewers),
+                        "inline": True
+                    }
+                ]
+            }
+
+        # RAID OUT
+        else:
+
+            embed = {
+                "title": "🚀 RAID OUT",
+                "description": f"**{raider} → {target}**",
+                "color": 15158332,
+                "fields": [
+                    {
+                        "name": "👥 Viewers",
+                        "value": str(viewers),
+                        "inline": True
+                    }
+                ]
+            }
 
         requests.post(WEBHOOK, json={"embeds":[embed]})
 
