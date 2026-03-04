@@ -4,42 +4,93 @@ import os
 
 app = Flask(__name__)
 
+CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+BROADCASTER_ID = "557633478"
+
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
+CALLBACK = os.getenv("CALLBACK_URL")
 
-@app.route("/", methods=["POST"])
-def twitch_event():
+# Twitchトークン取得
+def get_token():
 
-    data = request.json
+    r = requests.post(
+        "https://id.twitch.tv/oauth2/token",
+        params={
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
+            "grant_type": "client_credentials"
+        }
+    ).json()
 
-    if "challenge" in data:
-        return data["challenge"]
+    return r["access_token"]
 
-    event = data["event"]
 
-    from_user = event["from_broadcaster_user_name"]
-    to_user = event["to_broadcaster_user_name"]
-    viewers = event["viewers"]
+# EventSub登録
+def subscribe_event():
 
-    embed = {
-        "title": "🚀 レイド発生",
-        "description": f"**{from_user} → {to_user}**",
-        "url": f"https://twitch.tv/{to_user}",
-        "fields": [
-            {
-                "name": "👀 レイド人数",
-                "value": str(viewers),
-                "inline": True
-            }
-        ],
-        "color": 16744192,
-        "footer": {
-            "text": "Twitch Raid Monitor"
+    token = get_token()
+
+    headers = {
+        "Client-ID": CLIENT_ID,
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+
+    body = {
+        "type": "channel.raid",
+        "version": "1",
+        "condition": {
+            "to_broadcaster_user_id": BROADCASTER_ID
+        },
+        "transport": {
+            "method": "webhook",
+            "callback": CALLBACK,
+            "secret": "raidsecret"
         }
     }
 
-    requests.post(WEBHOOK, json={"embeds":[embed]})
+    r = requests.post(
+        "https://api.twitch.tv/helix/eventsub/subscriptions",
+        headers=headers,
+        json=body
+    )
 
-    return "", 200
+    print(r.text)
 
 
-app.run(host="0.0.0.0", port=3000)
+@app.route("/webhook", methods=["POST"])
+def webhook():
+
+    data = request.json
+
+    # Twitch認証
+    if request.headers.get("Twitch-Eventsub-Message-Type") == "webhook_callback_verification":
+        return data["challenge"]
+
+    if data["subscription"]["type"] == "channel.raid":
+
+        raider = data["event"]["from_broadcaster_user_name"]
+        viewers = data["event"]["viewers"]
+
+        embed = {
+            "title": "⚡ RAID発生",
+            "description": f"{raider} がレイドしました\n👥 {viewers}人\nhttps://twitch.tv/{raider}",
+            "color": 9148193
+        }
+
+        requests.post(WEBHOOK, json={"embeds":[embed]})
+
+    return "ok"
+
+
+@app.route("/")
+def home():
+    return "Raid Bot Running"
+
+
+if __name__ == "__main__":
+
+    subscribe_event()
+
+    app.run(host="0.0.0.0", port=3000)
