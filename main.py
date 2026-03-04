@@ -30,8 +30,6 @@ def get_token():
 
 def subscribe_event():
 
-    print("Subscribing to EventSub...")
-
     token = get_token()
 
     headers = {
@@ -40,7 +38,8 @@ def subscribe_event():
         "Content-Type": "application/json"
     }
 
-    body = {
+    # RAID IN
+    body_in = {
         "type": "channel.raid",
         "version": "1",
         "condition": {
@@ -53,12 +52,31 @@ def subscribe_event():
         }
     }
 
-    r = requests.post(
+    # RAID OUT
+    body_out = {
+        "type": "channel.raid",
+        "version": "1",
+        "condition": {
+            "from_broadcaster_user_id": BROADCASTER_ID
+        },
+        "transport": {
+            "method": "webhook",
+            "callback": CALLBACK,
+            "secret": "raidsecret"
+        }
+    }
+
+    requests.post(
         "https://api.twitch.tv/helix/eventsub/subscriptions",
         headers=headers,
-        json=body
+        json=body_in
     )
 
+    requests.post(
+        "https://api.twitch.tv/helix/eventsub/subscriptions",
+        headers=headers,
+        json=body_out
+    )
     print("EventSub status:", r.status_code)
     print(r.text)
 
