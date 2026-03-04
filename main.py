@@ -6,12 +6,13 @@ app = Flask(__name__)
 
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+
 BROADCASTER_ID = "557633478"
 
 WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 CALLBACK = os.getenv("CALLBACK_URL")
 
-# Twitchトークン取得
+
 def get_token():
 
     r = requests.post(
@@ -26,7 +27,6 @@ def get_token():
     return r["access_token"]
 
 
-# EventSub登録
 def subscribe_event():
 
     token = get_token()
@@ -50,13 +50,11 @@ def subscribe_event():
         }
     }
 
-    r = requests.post(
+    requests.post(
         "https://api.twitch.tv/helix/eventsub/subscriptions",
         headers=headers,
         json=body
     )
-
-    print(r.text)
 
 
 @app.route("/webhook", methods=["POST"])
@@ -64,7 +62,7 @@ def webhook():
 
     data = request.json
 
-    # Twitch認証
+    # Twitch verification
     if request.headers.get("Twitch-Eventsub-Message-Type") == "webhook_callback_verification":
         return data["challenge"]
 
@@ -74,9 +72,23 @@ def webhook():
         viewers = data["event"]["viewers"]
 
         embed = {
-            "title": "⚡ RAID発生",
-            "description": f"{raider} がレイドしました\n👥 {viewers}人\nhttps://twitch.tv/{raider}",
-            "color": 9148193
+            "title": "⚡ Twitch RAID",
+            "description": f"**{raider}** がレイドしました",
+            "url": f"https://twitch.tv/{raider}",
+            "color": 9148193,
+            "fields": [
+                {
+                    "name": "👥 Viewers",
+                    "value": f"{viewers}",
+                    "inline": True
+                }
+            ],
+            "thumbnail": {
+                "url": f"https://static-cdn.jtvnw.net/jtv_user_pictures/xarth/404_user_70x70.png"
+            },
+            "footer": {
+                "text": "Twitch Raid Monitor"
+            }
         }
 
         requests.post(WEBHOOK, json={"embeds":[embed]})
